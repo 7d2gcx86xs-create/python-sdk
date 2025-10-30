@@ -1,0 +1,2 @@
+"""MCP Portfolio Manager Server."""
+
