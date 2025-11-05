@@ -5,6 +5,7 @@ A demonstration of a portfolio management agent that combines MCP (Model Context
 ## Features
 
 - **MCP Server**: Exposes portfolio data through standardized MCP tools
+- **OpenAI Apps SDK Compliant**: All tools include proper `_meta` fields with invocation status strings per [OpenAI Apps SDK documentation](https://developers.openai.com/apps-sdk/build/mcp-server)
 - **OpenAI Integration**: Uses GPT models to understand natural language queries
 - **Portfolio Analytics**: View holdings, calculate profits/losses, track performance
 - **Mock Data**: Includes sample portfolio data for demonstration

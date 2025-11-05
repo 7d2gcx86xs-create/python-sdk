@@ -23,7 +23,12 @@ def load_portfolio() -> dict[str, Any]:
         return json.load(f)
 
 
-@mcp.tool()
+@mcp.tool(
+    meta={
+        "openai/toolInvocation/invoking": "Loading portfolio holdings...",
+        "openai/toolInvocation/invoked": "Portfolio holdings loaded",
+    }
+)
 def get_all_holdings() -> dict[str, Any]:
     """Get all portfolio holdings with current values and profit/loss.
     
@@ -76,7 +81,12 @@ def get_all_holdings() -> dict[str, Any]:
     }
 
 
-@mcp.tool()
+@mcp.tool(
+    meta={
+        "openai/toolInvocation/invoking": "Fetching holding details...",
+        "openai/toolInvocation/invoked": "Holding details retrieved",
+    }
+)
 def get_holding_by_ticker(ticker: str) -> dict[str, Any]:
     """Get details for a specific holding by ticker symbol.
     
@@ -111,7 +121,12 @@ def get_holding_by_ticker(ticker: str) -> dict[str, Any]:
     return {"error": f"Holding with ticker '{ticker}' not found"}
 
 
-@mcp.tool()
+@mcp.tool(
+    meta={
+        "openai/toolInvocation/invoking": "Calculating portfolio summary...",
+        "openai/toolInvocation/invoked": "Portfolio summary calculated",
+    }
+)
 def get_portfolio_summary() -> dict[str, Any]:
     """Get a summary of the entire portfolio.
     
@@ -157,7 +172,12 @@ def _current_value(holding: dict[str, Any]) -> float:
     return float(holding["quantity"]) * float(holding["current_price"])
 
 
-@mcp.tool()
+@mcp.tool(
+    meta={
+        "openai/toolInvocation/invoking": "Analyzing portfolio diversification...",
+        "openai/toolInvocation/invoked": "Diversification analysis complete",
+    }
+)
 def assess_diversification() -> dict[str, Any]:
     """Assess portfolio diversification using sector weights and concentration metrics.
 
@@ -230,7 +250,12 @@ def assess_diversification() -> dict[str, Any]:
     }
 
 
-@mcp.tool()
+@mcp.tool(
+    meta={
+        "openai/toolInvocation/invoking": "Assessing portfolio risk...",
+        "openai/toolInvocation/invoked": "Risk assessment complete",
+    }
+)
 def assess_risk() -> dict[str, Any]:
     """Provide a simple heuristic risk assessment (score 1-10) with factors.
 

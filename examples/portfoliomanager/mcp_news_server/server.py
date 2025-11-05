@@ -41,7 +41,12 @@ def _parse_feed(url: str, max_items: int) -> list[dict[str, Any]]:
     return items
 
 
-@mcp.tool()
+@mcp.tool(
+    meta={
+        "openai/toolInvocation/invoking": "Fetching market news...",
+        "openai/toolInvocation/invoked": "Market news retrieved",
+    }
+)
 def fetch_symbol_news(ticker: str, max_items: int = 5) -> dict[str, Any]:
     """Fetch latest news for a ticker via Google News RSS.
 
@@ -52,7 +57,12 @@ def fetch_symbol_news(ticker: str, max_items: int = 5) -> dict[str, Any]:
     return {"ticker": ticker.upper(), "items": items}
 
 
-@mcp.tool()
+@mcp.tool(
+    meta={
+        "openai/toolInvocation/invoking": "Gathering relevant market news...",
+        "openai/toolInvocation/invoked": "Market news gathered",
+    }
+)
 def news_for_portfolio(portfolio_json: str, max_per_symbol: int = 3) -> dict[str, Any]:
     """Fetch top headlines for each symbol in a portfolio snapshot.
 
