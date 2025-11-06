@@ -1,4 +1,4 @@
-"""Portfolio Manager Agent Client using OpenAI Agent SDK with MCP.
+"""Portfolio Manager Agent using OpenAI Agent SDK with MCP.
 
 This script provides an interactive command-line interface to chat with
 a portfolio manager assistant. It uses the OpenAI Assistants API to create
@@ -8,7 +8,7 @@ This client follows the "Custom UX" guide from the OpenAI documentation:
 https://developers.openai.com/apps-sdk/build/custom-ux
 
 Usage:
-  uv run examples/portfoliomanager/client.py
+  uv run python examples/portfoliomanager/portfolio_agent.py
 
 Requires OPENAI_API_KEY in the environment or a .env file.
 """
@@ -22,16 +22,9 @@ from typing import Any
 
 from dotenv import load_dotenv
 from openai import OpenAI
-
-try:
-    # When executed as a script from the project root
-    from agents.integration import OPENAI_TOOLS, dispatch_tool_call
-except (ImportError, ModuleNotFoundError):
-    # Support for different execution contexts
-    from examples.portfoliomanager.agents.integration import (  # type: ignore
-        OPENAI_TOOLS,
-        dispatch_tool_call,
-    )
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+from sys import executable as PYTHON_EXE
 
 
 # Configure logging
@@ -43,6 +36,128 @@ SYSTEM_PROMPT = (
     "You are a portfolio assistant. You have tools to read a local MCP portfolio server "
     "and a news server. Use tools when asked about current portfolio data or headlines."
 )
+
+BASE_DIR = Path(__file__).resolve().parent
+
+async def call_mcp_tool(server_rel: str, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    """Call an MCP tool on a server launched via stdio.
+
+    Args:
+      server_rel: path relative to examples/portfoliomanager (e.g., "mcp_portfolio_server/server.py")
+      tool: tool name to call
+      arguments: JSON-serializable dict of tool arguments
+
+    Returns:
+      Structured content from the tool call, or empty dict.
+    """
+    server_path = BASE_DIR / server_rel
+
+    async with stdio_client(
+        StdioServerParameters(command=PYTHON_EXE, args=[str(server_path)], env=os.environ.copy())
+    ) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool(tool, arguments)
+            return getattr(result, "structuredContent", {}) or {}
+
+
+# ---------------------------
+# Tool wrappers (async)
+# ---------------------------
+
+
+async def tool_get_portfolio() -> dict[str, Any]:
+    return await call_mcp_tool("mcp_portfolio_server/server.py", "get_all_holdings", {})
+
+
+async def tool_assess_diversification() -> dict[str, Any]:
+    return await call_mcp_tool("mcp_portfolio_server/server.py", "assess_diversification", {})
+
+
+async def tool_assess_risk() -> dict[str, Any]:
+    return await call_mcp_tool("mcp_portfolio_server/server.py", "assess_risk", {})
+
+
+async def tool_fetch_news_for_portfolio(portfolio_snapshot: dict[str, Any] | None = None, max_per_symbol: int = 3) -> dict[str, Any]:
+    if portfolio_snapshot is None:
+        portfolio_snapshot = await tool_get_portfolio()
+    args = {"portfolio_json": json.dumps(portfolio_snapshot), "max_per_symbol": max_per_symbol}
+    return await call_mcp_tool("mcp_news_server/server.py", "news_for_portfolio", args)
+
+
+# ---------------------------
+# Tool schemas for OpenAI functions
+# ---------------------------
+
+
+OPENAI_TOOLS: list[dict[str, Any]] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_portfolio",
+            "description": "Load the current portfolio holdings snapshot (values, P/L, summary).",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "assess_diversification",
+            "description": "Assess diversification: sector weights, HHI concentration, top position weight.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "assess_risk",
+            "description": "Heuristic risk score (1-10) and risk factors for the portfolio.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_news_for_portfolio",
+            "description": "Fetch top headlines relevant to holdings from a news source.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "portfolio_snapshot": {"type": "object", "description": "Optional portfolio snapshot; if omitted, it will be loaded via get_portfolio."},
+                    "max_per_symbol": {"type": "integer", "default": 3, "minimum": 1, "maximum": 10},
+                },
+                "required": [],
+            },
+        },
+    },
+]
+
+
+async def dispatch_tool_call(tool_call) -> dict[str, Any]:
+    """Dispatch OpenAI function call to the appropriate async tool wrapper.
+
+    Returns a dict to be serialized as the tool result content.
+    """
+    name = tool_call.function.name
+    arguments_json = tool_call.function.arguments
+    try:
+        args = json.loads(arguments_json or "{}")
+    except json.JSONDecodeError:
+        args = {}
+
+    if name == "get_portfolio":
+        return await tool_get_portfolio()
+    if name == "assess_diversification":
+        return await tool_assess_diversification()
+    if name == "assess_risk":
+        return await tool_assess_risk()
+    if name == "fetch_news_for_portfolio":
+        return await tool_fetch_news_for_portfolio(
+            portfolio_snapshot=args.get("portfolio_snapshot"),
+            max_per_symbol=int(args.get("max_per_symbol", 3)),
+        )
+
+    return {"error": f"Unknown tool: {name}"}
 
 
 async def main():
